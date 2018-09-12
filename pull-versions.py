@@ -8,6 +8,10 @@ import urllib2
 from bs4 import BeautifulSoup
 
 def scrape_github(repo):
+    if 'github.com' in repo:
+        if repo.endswith(".git"):
+            repo = repo[:-4]
+    # Alternate idea, screen scrape if I don't like readgittags()
     try:
         page = urllib2.urlopen(repo+'/tags')
     except Exception as exc:
@@ -18,40 +22,32 @@ def scrape_github(repo):
     except:
         version = "NO_VERSION_FOUND"
     return version
-
     # print(soup.get_text())
 
 def readgittags(repo, ref):
-    # 
+    # clone, get the tags, fine dhe version
     FNULL = open(os.devnull, 'w')
     subprocess.call(['rm', '-rf', './vercheck'], stdout=FNULL)
     subprocess.call(['git', 'clone', repo, './vercheck'],cwd='.', stdout=FNULL, stderr=FNULL)
-    subprocess.call(['git', 'reset', '--hard', ref],cwd='./vercheck', stdout=FNULL, stderr=FNULL)
-    tags = subprocess.Popen(['git', 'describe', '--tags', '--long'],cwd='./vercheck', stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.read()
+    verhash = subprocess.Popen(['git', 'reset', '--hard', ref],cwd='./vercheck', stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.read().split()[4]
+    version = subprocess.Popen(['git', 'describe', '--tags', '--long'],cwd='./vercheck', stdout=subprocess.PIPE, stderr=subprocess.STDOUT).stdout.read().rstrip()
     subprocess.call(['rm', '-rf', './vercheck'], stdout=FNULL)
-    return tags
+    if 'fatal' in version:
+        version = "v1.0.0-" + verhash
+    return version
 
 def main():
-    with open("t.yml", 'r') as stream:
+    with open("go_deps.yml", 'r') as stream:
         try:
             doc = yaml.load(stream)
-            print("PACKAGE NAME" , "SOURCE REPOSITORY", "SOURCE REFERENCE", "VERSION NUMBER")
+            print('"PACKAGE NAME" , SOURCE REPOSITORY , VERSION NUMBER')
             for package,refs in doc['packages'].items():
-                print package
-                print("      src_repo   {}").format(refs['src_repo'])
-                print("      src_ref    {}").format(refs['src_ref'])
-                # now we git gud
                 url = refs['src_repo']
-                if 'github.com' in url:
-                    if url.endswith(".git"):
-                        url = url[:-4]
-                    print(readgittags(url, refs['src_ref']))
-                    # print(scrape_github(url))
-                # scrape_googlesource()
-                # if 'go.googlesource' in url:
-
-                print("=================================")
-                print("")
+                refhash = refs['src_ref']
+                if ('github.com' in url or 'go.googlesource' in url) :
+                    version = readgittags(url, refhash)
+                    package = package.split('/')[-1]
+                print('{} , {} , {}'.format(package, url, version))
         except yaml.YAMLError as exc:
             print(exc)
 
